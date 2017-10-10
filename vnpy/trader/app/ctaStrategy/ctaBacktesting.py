@@ -184,10 +184,14 @@ class BacktestingEngine(object):
     def loadHistoryData(self):
         """载入历史数据"""
         self.dbClient = pymongo.MongoClient(globalSetting['mongoHost'], globalSetting['mongoPort'])
+        
+        #  collection里包含了回测的所有历史数据
+        #>>Collection(Database(MongoClient(host=[u'localhost:27017'], 
+        #  document_class=dict, tz_aware=False, connect=True), u'VnTrader_1Min_Db'), u'IF0000')
         collection = self.dbClient[self.dbName][self.symbol]          
 
         self.output(u'开始载入数据')
-      
+       
         # 首先根据回测模式，确认要使用的数据类
         if self.mode == self.BAR_MODE:
             dataClass = VtBarData
@@ -198,14 +202,39 @@ class BacktestingEngine(object):
 
         # 载入初始化需要用的数据
         flt = {'datetime':{'$gte':self.dataStartDate,
-                           '$lt':self.strategyStartDate}}        
+                           '$lt':self.strategyStartDate}}   
+        #>>initCursor
+        #>><pymongo.cursor.Cursor at 0x25fbf770>
+        #类似于一个iterator里面包含了所有排序后的历史数据
+        #>>initCursor[0]
+        """
+        {u'_id': ObjectId('59dc2461179f0dea9b45583b'),
+         u'close': 2378.0,
+         u'date': u'20120104',
+         u'datetime': datetime.datetime(2012, 1, 4, 9, 16),
+         u'exchange': u'',
+         u'gatewayName': u'',
+         u'high': 2383.8,
+         u'low': 2377.8,
+         u'open': 2381.0,
+         u'openInterest': 0,
+         u'rawData': None,
+         u'symbol': u'IF0000',
+         u'time': u'09:16:00',
+         u'volume': u'3213',
+         u'vtSymbol': u'IF0000'}
+        """
         initCursor = collection.find(flt).sort('datetime')
         
         # 将数据从查询指针中读取出，并生成列表
         self.initData = []              # 清空initData列表
         for d in initCursor:
+            #dataClass == VtBarData
+            #VtBarData()是一个初始化的Bar,每个属性都是初始化的：high == 0
             data = dataClass()
+            #历史数据转换成Bar数据(每个属性的值由0或空  变为历史值)，便于回测
             data.__dict__ = d
+            #initData包含了由历史数据构成的VtBarData
             self.initData.append(data)      
         
         # 载入回测数据
